@@ -6,11 +6,12 @@ This is a simple implementation of MessagePack for Lua.
 
 It runs almost same as:
 [luajit-msgpack](https://github.com/catwell/luajit-msgpack),
-[luajit-msgpack-pure](https://github.com/catwell/luajit-msgpack-pure)
+[luajit-msgpack-pure](https://github.com/catwell/luajit-msgpack-pure),
+but it doesn't require LuaJIT and FFI. Only requires Lua 5.1 .
 
-luajit-msgpack-pure is almost OK but it requires LuaJIT and FFI,
-but Moai SDK isn't based on LuaJIT now so I deleted dependencies on it.
-Special thanks to luajit-msgpack-pure!
+## Why
+Now Moai SDK isn't based on LuaJIT so I had to delete dependencies on LuaJIT.
+Special thanks to luajit-msgpack-pure! Nice tests.
 
 Since it's not using fast C-based binary buffer,
 it runs about 20x slower than luajit-msgpack-pure.
