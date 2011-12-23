@@ -2,7 +2,7 @@
 
 ## Presentation
 
-This is a simple implementation of MessagePack for Lua.
+This is a simple implementation of [MessagePack](http://msgpack.org/) for Lua.
 
 It runs almost same as:
 [luajit-msgpack](https://github.com/catwell/luajit-msgpack),
