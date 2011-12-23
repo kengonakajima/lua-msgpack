@@ -10,7 +10,7 @@ It runs almost same as:
 but it doesn't require LuaJIT and FFI. Only requires Lua 5.1 .
 
 ## Why
-Now Moai SDK isn't based on LuaJIT so I had to delete dependencies on LuaJIT.
+Now [Moai SDK](https://github.com/moai/moai-dev) isn't based on LuaJIT so I had to delete dependencies on LuaJIT.
 Special thanks to luajit-msgpack-pure! Nice tests.
 
 Since it's not using fast C-based binary buffer,
