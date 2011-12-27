@@ -65,6 +65,17 @@ end
 print(" OK")
 
 
+-- Corrupt data test
+print("corrupt data test")
+local s = mp.pack(data)
+local corrupt_tail = string.sub( s, 1, 10 )
+offset,res = pcall(function() mp.unpack(s) end)
+assert(offset)
+offset,res = pcall(function() mp.unpack(corrupt_tail) end)
+assert(not offset)
+
+
+
 
 -- Raw tests
 
@@ -109,6 +120,8 @@ for n=65536,65536+5 do
    printf(".")      
    raw_test(rand_raw(n),5)
 end
+
+
 
 
 -- Integer tests
@@ -182,7 +195,13 @@ for n=-2147483648+100,-2147483648,-1 do
 end
 
 
+
+
+
 print("OK")
+
+
+
 
 
 -- no 64bit!
