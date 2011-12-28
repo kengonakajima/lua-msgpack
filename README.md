@@ -1,8 +1,8 @@
 # lua-msgpack
 
-## Presentation
 
 This is a simple implementation of [MessagePack](http://msgpack.org/) for Lua.
+
 MessagePack is a very simple and powerful serialization format for many platforms and languages.
 
 lua-msgpack runs almost same as:
