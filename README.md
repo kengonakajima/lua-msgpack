@@ -14,10 +14,17 @@ Now [Moai SDK](https://github.com/moai/moai-dev) isn't based on LuaJIT so I had 
 Special thanks to luajit-msgpack-pure! Tests are almost same as its.
 
 ## Usage
+
+In your app:
+
     local mp = require( "msgpack" )
     local tbl = { a=123, b="any", c={"ta","bl","e",1,2,3} }
     local packed = mp.pack(tbl)
     local unpacked_table = mp.unpack(packed)
+
+On Moai and Lua5.1, put luabit.lua and msgpack.lua in your project directory.
+On LuaJIT, you need only msgpack.lua.
+
     
 ## Compatibility
 Tested on lua5.1, luajit2-beta8, Moai beta 0.8
