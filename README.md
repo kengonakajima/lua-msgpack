@@ -3,8 +3,9 @@
 ## Presentation
 
 This is a simple implementation of [MessagePack](http://msgpack.org/) for Lua.
+MessagePack is a very simple and powerful serialization format for many platforms and languages.
 
-It runs almost same as:
+lua-msgpack runs almost same as:
 [luajit-msgpack](https://github.com/catwell/luajit-msgpack),
 [luajit-msgpack-pure](https://github.com/catwell/luajit-msgpack-pure),
 but it doesn't require LuaJIT and FFI, nor any native libs. Only requires Lua 5.1 runtime.
