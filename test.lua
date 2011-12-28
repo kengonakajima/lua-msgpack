@@ -74,12 +74,16 @@ assert(offset)
 offset,res = pcall(function() mp.unpack(corrupt_tail) end)
 assert(not offset)
 
-
+-- Empty data test
+print("empty test")
+local offset,res = mp.unpack(mp.pack({}))
+assert(offset==1)
+assert(res[1]==nil)
 
 
 -- Raw tests
 
-printf("Raw tests ")
+print("Raw tests ")
 
 local rand_raw = function(len)
                     local t = {}

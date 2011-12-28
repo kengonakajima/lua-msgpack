@@ -1,9 +1,19 @@
+local luabit
+local res,err = pcall( function() return require "bit" end )
 
-local luabit = require "bit"
+if not res then
+   print("msgpack: no bitops. falling back: load local luabit.")
+   luabit = require "./luabit" -- local
+else
+   luabit = require "bit"
+end
+
 
 -- cache bitops
 local bor,band,bxor,rshift = luabit.bor,luabit.band,luabit.bxor,luabit.brshift
-
+if not rshift then -- luajit differ from luabit
+   rshift = luabit.rshift
+end 
 
 -- endianness
 local LITTLE_ENDIAN = true
