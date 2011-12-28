@@ -23,9 +23,9 @@ Special thanks to luajit-msgpack-pure! Tests are almost same as its.
 Tested on lua5.1, luajit2-beta8, Moai beta 0.8
 
 ## Limitations
-Currently int64, uint64, float, double types are not implemented.
+- Currently int64, uint64, float, double types are not implemented.
 
-It runs about 20x ~ 50x slower than luajit-msgpack-pure,
+- Performance. It runs about 20x ~ 50x slower than luajit-msgpack-pure,
 so don't usable for server side, but it's totally enough for client-side game dev.
 
 For details, try bench.lua for benchmarking:
@@ -44,7 +44,7 @@ luajit2:
     str1000	  0.028931	sec	1036.9499844457	times/sec
     str10000  0.913015	sec	32.858167719041	times/sec
 
-lua 5.1:
+lua 5.1 (moai):
 
     empty     0.001068	sec	28089.887640449	times/sec
     iary1     0.00179	sec	16759.776536313	times/sec
@@ -58,11 +58,11 @@ lua 5.1:
     str1000   0.411015	sec	72.990036859969	times/sec
     str10000  4.713626	sec	6.3645270116891	times/sec
 
+on mac book pro i5 2.53GHz.
+
+
 ## TODO
 - int64, uint64, float, double
-- Omit luabit(bit.lua) and switch to embedded bitwise ops after Moai SDK supports Lua 5.2.
 
-## Usage
 
-See tests/test.lua for usage.
 
