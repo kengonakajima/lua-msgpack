@@ -1,3 +1,6 @@
+local table = require("table")
+local string = require("string")
+
 local luabit
 local res,err = pcall( function() return require "bit" end )
 
@@ -360,7 +363,7 @@ unpackers.raw16 = function(buf,offset)
   local b=""
 --  print("unpackers.raw16: n:", n, string.format("%x", buf[offset+1]) )  
   for i=1,n do
-     b = b .. string.char(buf[offset+i+2])
+     b = b .. string.char(buf[offset+i+1+2])
   end
   return offset+n+3,b 
 end
@@ -369,9 +372,8 @@ unpackers.raw32 = function(buf,offset)
   local n = unpack_number(buf,offset+1,"uint32_t",4)
   local b=""
 --  print("unpackers.raw32: n:", n, string.format("%x %x %x %x %x", buf[offset+1], buf[offset+2], buf[offset+3], buf[offset+4], buf[offset+5]) )
-  for i=1,n do
-     
-     b = b .. string.char(buf[offset+i+4])
+  for i=1,n do     
+     b = b .. string.char(buf[offset+i+1+4])
   end
   return offset+n+5,b
 end

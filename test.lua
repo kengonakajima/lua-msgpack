@@ -16,6 +16,28 @@ local display = function(m,x)
 local printf = function(p,...)
                   io.stdout:write(string.format(p,...)); io.stdout:flush()
                end
+
+local rand_raw = function(len)
+                    local t = {}
+                    for i=1,len do t[i] = string.char(math.random(0,255)) end
+                    return table.concat(t)
+                 end
+local strdump = function(s)
+                   local out = ""
+                   
+                   for i=1,#s do
+                      if i>4 and i < #s-4 then
+                         if (i%1000)==0 then
+                            out = out .. "."
+                         end
+                      else
+                         out = out .. s:byte( i ) .. " "
+                      end
+                   end
+                   return out
+                end
+
+
 -- copy(right) from penlight tablex module! for test in MOAI environment. 
 function deepcompare(t1,t2,ignore_mt,eps)
     local ty1 = type(t1)
@@ -70,7 +92,7 @@ local data = {
 255,
 65535,
 4294967295,
-msgpack_cases,
+msgpack_cases
 }
 
 local offset,res
@@ -90,6 +112,42 @@ end
 print(" OK")
 
 
+-- long str in table (regression)
+printf("regression test : str in a table")
+repeater = function(n)
+              local s = ""
+              for i=1,n do s = s .. "abcd" end
+              return s
+           end
+data = {
+   { data = "abcd", d2=1, d3="abcd" },
+   { data = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd", d2=1, d3="abcd" },
+   { data = repeater(20000), d2=1, d3="abcd" }
+}
+for i=1,#data do
+   print("regtest i:", i,  " len:", #data[i].data )
+   local packed = mp.pack(data[i])
+   print( "packed len:", #packed )
+   print( "packed:", strdump( packed ))
+   local offset,res = mp.unpack( packed )
+   assert(offset or res,"decoding failed")
+   print( "res.data:", strdump( res.data ) )
+   assert( res.data:sub(1,1) == "a" )
+   assert( res.data:sub( #res.data, #res.data ) == "d" )
+   assert( res.d2 == 1 )
+   assert( res.d3 == "abcd" )
+   if not deepcompare(res,data[i]) then
+      print( "expect string len:", string.len(data[i].data) )
+      print( "data.data:", strdump( data[i].data ))
+      print( "packed:", strdump( packed ) )
+      print( "found string len:", string.len(res.data ) )
+      print( "res.data: ", strdump( res.data ) )
+
+      assert(false, "fail")
+   end
+end
+print("OK")
+   
 -- Corrupt data test
 print("corrupt data test")
 local s = mp.pack(data)
@@ -109,15 +167,8 @@ assert(res[1]==nil)
 -- Raw tests
 
 print("Raw tests ")
-
-local rand_raw = function(len)
-                    local t = {}
-                    for i=1,len do t[i] = string.char(math.random(0,255)) end
-                    return table.concat(t)
-                 end
-
 local raw_test = function(raw,overhead)
-                    offset,res = mp.unpack(mp.pack(raw))
+                    local offset,res = mp.unpack(mp.pack(raw))
                     assert(offset,"decoding failed")
                     if not res == raw then
                        assert(false,string.format("wrong raw (len %d - %d)",#res,#raw))
@@ -132,6 +183,10 @@ printf(".")
 for n=0,31 do -- fixraw
    raw_test(rand_raw(n),1)
 end
+
+
+
+
 
 -- raw16
 printf("test raw16:")
