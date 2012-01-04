@@ -428,8 +428,10 @@ local ljp_unpack = function(s,offset)
                       return offset,data
                    end
 
-return {
+msgpack = {
   pack = ljp_pack,
   unpack = ljp_unpack,
 }
+
+return msgpack
 
