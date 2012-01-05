@@ -1,0 +1,2 @@
+test:
+	lua test.lua
