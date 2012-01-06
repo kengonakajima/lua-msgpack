@@ -193,14 +193,14 @@ printf("test raw16:")
 for n=32,32+100 do
    raw_test(rand_raw(n),3)
 end
-for n=65535-5,65535 do
+for n=65535-2,65535 do
    printf(".")   
    raw_test(rand_raw(n),3)
 end
 
 -- raw32
 printf("test raw32:")
-for n=65536,65536+5 do
+for n=65536,65536+2 do
    printf(".")      
    raw_test(rand_raw(n),5)
 end
