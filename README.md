@@ -72,7 +72,7 @@ on mac book pro i5 2.53GHz.
 
 
 ## TODO
-- int64, uint64, float, double
+- int64, uint64, float
 
 
 
