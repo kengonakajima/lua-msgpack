@@ -1,5 +1,7 @@
 # lua-msgpack
 
+<a href="http://travis-ci.org/kengonakajima/lua-msgpack"><img src="https://secure.travis-ci.org/kengonakajima/lua-msgpack.png"></a>
+
 
 This is a simple implementation of [MessagePack](http://msgpack.org/) for Lua.
 
