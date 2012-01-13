@@ -35,7 +35,7 @@ Tested on lua5.1, luajit2-beta8, Moai beta 0.8
 ## Limitations
 - Currently int64, uint64, float types are not implemented. these types are converted into double.
 
-- Performance. It runs about 20x ~ 50x slower than luajit-msgpack-pure,
+- Performance. It runs about 20x ~ 1000x slower than luajit-msgpack-pure,
 so don't usable for server side, but it's totally enough for client-side game dev.
 
 For details, try bench.lua for benchmarking:
