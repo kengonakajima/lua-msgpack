@@ -65,7 +65,7 @@ end
 
 local msgpack_cases = {
    false,true,nil,0,0,0,0,0,0,0,0,0,-1,-1,-1,-1,-1,127,127,255,65535,
-   4294967295,-32,-32,-128,-32768,-2147483648,  --0.0,-0.0,1.0,-1.0,  no double!
+   4294967295,-32,-32,-128,-32768,-2147483648, 0.0,-0.0,1.0,-1.0, 
    "a","a","a","","","",
    {0},{0},{0},{},{},{},{},{},{},{a=97},{a=97},{a=97},{{}},{{"a"}},
 }
@@ -75,11 +75,11 @@ local data = {
    false,
    42,
       -42,
-   --  0.79, double is not implemented!
+   0.1,
+   0.79, 
    "Hello world!",
    {},
-   --  {true,false,42,-42,0.79,"Hello","World!"},
-   {true,false,42,-42,"Hello","World!"},   -- double is not implemented
+   {true,false,42,-42,0.79,"Hello","World!"},
    {{"multi","level",{"lists","used",45,{{"trees"}}},"work",{}},"too"},
    {foo="bar",spam="eggs"},
    {nested={maps={"work","too"}}},
@@ -87,11 +87,14 @@ local data = {
    -1,
    -128,
    -32768,
+   -32769,
    -2147483648,
 127,
 255,
 65535,
 4294967295,
+7.9e+35,
+-7.9e+35,
 msgpack_cases
 }
 
@@ -164,56 +167,15 @@ assert(offset==1)
 assert(res[1]==nil)
 
 
--- Raw tests
-
-print("Raw tests ")
-local raw_test = function(raw,overhead)
-                    local offset,res = mp.unpack(mp.pack(raw))
-                    assert(offset,"decoding failed")
-                    if not res == raw then
-                       assert(false,string.format("wrong raw (len %d - %d)",#res,#raw))
-                    end
-                    assert(offset-#raw == overhead,string.format(
-                              "wrong overhead %d for #raw %d (expected %d)",
-                              offset-#raw,#raw,overhead
-                        ))
-                 end
-
-printf(".")
-for n=0,31 do -- fixraw
-   raw_test(rand_raw(n),1)
-end
-
-
-
-
-
--- raw16
-printf("test raw16:")
-for n=32,32+100 do
-   raw_test(rand_raw(n),3)
-end
-for n=65535-2,65535 do
-   printf(".")   
-   raw_test(rand_raw(n),3)
-end
-
--- raw32
-printf("test raw32:")
-for n=65536,65536+2 do
-   printf(".")      
-   raw_test(rand_raw(n),5)
-end
-
-
-
 
 -- Integer tests
 
 printf("Integer tests ")
 
 local nb_test = function(n,sz)
-                   offset,res = mp.unpack(mp.pack(n))
+                   local packed = mp.pack(n)
+                   if string.len(packed) ~= sz then error("packed size mismatch") end
+                   offset,res = mp.unpack(packed)
                    assert(offset,"decoding failed")
                    if not res == n then
                       assert(false,string.format("wrong value %d, expected %d",res,n))
@@ -223,6 +185,9 @@ local nb_test = function(n,sz)
                              offset,n,sz
                        ))
                 end
+
+
+
 
 printf(".")
 for n=0,127 do -- positive fixnum
@@ -279,31 +244,71 @@ for n=-2147483648+100,-2147483648,-1 do
 end
 
 
+print("OK")
+
+-- Floating point tests
+print("Floating point tests")
+
+printf(".")
+for i=1,1000 do
+  local n = math.random()*200-100
+  nb_test(n,9)
+end
+print(" OK")
+
+-- Raw tests
+
+print("Raw tests ")
+local raw_test = function(raw,overhead)
+                    local offset,res = mp.unpack(mp.pack(raw))
+                    assert(offset,"decoding failed")
+                    if not res == raw then
+                       assert(false,string.format("wrong raw (len %d - %d)",#res,#raw))
+                    end
+                    assert(offset-#raw == overhead,string.format(
+                              "wrong overhead %d for #raw %d (expected %d)",
+                              offset-#raw,#raw,overhead
+                        ))
+                 end
+
+printf(".")
+for n=0,31 do -- fixraw
+   raw_test(rand_raw(n),1)
+end
 
 
 
+
+
+-- raw16
+printf("test raw16:")
+for n=32,32+100 do
+   raw_test(rand_raw(n),3)
+end
+for n=65535-5,65535 do
+   printf(".")   
+   raw_test(rand_raw(n),3)
+end
+
+-- raw32
+printf("test raw32:")
+for n=65536,65536+5 do
+   printf(".")      
+   raw_test(rand_raw(n),5)
+end
 print("OK")
 
 
 
 
-
--- no 64bit!
+print("skip 64bit int test")
 --printf(".")
 --for n=-2147483649,-2147483649-100,-1 do -- int64
 --  nb_test(n,9)
 --end
 --print(" OK")
 
--- Floating point tests
---printf("Floating point tests ")
 
---printf(".")
---for i=1,100 do
---  local n = math.random()*200-100
---  nb_test(n,9)
---end
---print(" OK")
 
 
 

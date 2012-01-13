@@ -31,7 +31,7 @@ On LuaJIT, you need only msgpack.lua.
 Tested on lua5.1, luajit2-beta8, Moai beta 0.8
 
 ## Limitations
-- Currently int64, uint64, float, double types are not implemented.
+- Currently int64, uint64, float types are not implemented. these types are converted into double.
 
 - Performance. It runs about 20x ~ 50x slower than luajit-msgpack-pure,
 so don't usable for server side, but it's totally enough for client-side game dev.

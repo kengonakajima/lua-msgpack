@@ -56,6 +56,106 @@ else
                         buf_append_tbl(destt,t)
                      end
 end
+local buf_append_double = function(destt,n)
+                             -- assume double
+                             local b = doubleto8bytes(n)
+--                             print( string.format( "doubleto8bytes: %x %x %x %x %x %x %x %x", b:byte(1), b:byte(2), b:byte(3), b:byte(4), b:byte(5), b:byte(6), b:byte(7), b:byte(8)))
+                             buf_append_tbl(destt,{0xcb})
+                             buf_append_str(destt,string.reverse(b), 8 ) -- make big endian double precision 
+                          end
+
+
+
+
+
+--- IEEE 754
+
+-- out little endian
+function doubleto8bytes(x)
+   local function grab_byte(v)
+      return math.floor(v / 256),
+      string.char(math.mod(math.floor(v), 256))
+   end
+   local sign = 0
+   if x < 0 then sign = 1; x = -x end
+   local mantissa, exponent = math.frexp(x)
+   if x == 0 then -- zero
+      mantissa, exponent = 0, 0
+   elseif x == 1/0 then
+      mantissa, exponent = 0, 2047
+   else
+      mantissa = (mantissa * 2 - 1) * math.ldexp(0.5, 53)
+      exponent = exponent + 1022
+   end
+--   print("doubleto8bytes: exp:", exponent, "mantissa:", mantissa , "sign:", sign )
+   
+   local v, byte = "" -- convert to bytes
+   x = mantissa
+   for i = 1,6 do
+      x, byte = grab_byte(x); v = v..byte -- 47:0
+   end
+   x, byte = grab_byte(exponent * 16 + x);  v = v..byte -- 55:48
+   x, byte = grab_byte(sign * 128 + x); v = v..byte -- 63:56
+   return v
+end
+
+function bitstofrac(ary)
+   local x = 0
+   local cur = 0.5
+   for i,v in ipairs(ary) do
+      x = x + cur * v
+      cur = cur / 2
+   end
+   return x   
+end
+
+function bytestobits(ary)
+   local out={}
+   for i,v in ipairs(ary) do
+      for j=0,7,1 do
+         table.insert(out, luabit.band( luabit.brshift(v,7-j), 1 ) )
+      end
+   end
+   return out
+end
+
+function dumpbits(ary)
+   local s=""
+   for i,v in ipairs(ary) do
+      s = s .. v .. " "
+      if (i%8)==0 then s = s .. " " end
+   end
+   print(s)
+end
+
+-- get little endian
+function bytestodouble(v)
+   -- sign:1bit
+   -- exp: 11bit (2048, bias=1023)
+   local sign = math.floor(v:byte(8) / 128)
+   local exp = luabit.band( v:byte(8), 127 ) * 16 + luabit.brshift( v:byte(7), 4 ) - 1023 -- bias
+   -- frac: 52 bit
+   local fracbytes = {
+      luabit.band( v:byte(7), 15 ), v:byte(6), v:byte(5), v:byte(4), v:byte(3), v:byte(2), v:byte(1) -- big endian
+   }
+   local bits = bytestobits(fracbytes)
+   
+   for i=1,4 do table.remove(bits,1) end
+
+--   dumpbits(bits)
+
+   if sign == 1 then sign = -1 else sign = 1 end
+   
+   local frac = bitstofrac(bits)
+   if exp == -1023 and frac==0 then return 0 end
+   if exp == 1024 and frac==0 then return 1/0 *sign end
+   local real = math.ldexp(1+frac,exp)
+
+--   print( "sign:", sign, "exp:", exp,  "frac:", frac, "real:", real )
+   return real * sign
+end
+
+
 
 --- packers
 
@@ -88,8 +188,9 @@ packers.number = function(n)
         buf_append_intx(buffer,n,16,0xcd)
       elseif n < 4294967296 then -- uint32
         buf_append_intx(buffer,n,32,0xce)
-      else -- uint64
-        buf_append_intx(buffer,n,64,0xcf)
+      else -- lua cannot handle uint64, so double
+--        buf_append_intx(buffer,n,64,0xcf)
+         buf_append_double(buffer,n)
       end
     else -- negative integer
       if n >= -32 then -- negative fixnum
@@ -100,13 +201,13 @@ packers.number = function(n)
         buf_append_intx(buffer,n,16,0xd1)
       elseif n >= -2147483648 then -- int32
         buf_append_intx(buffer,n,32,0xd2)
-      else -- int64
-        buf_append_intx(buffer,n,64,0xd3)
+      else -- luca cannot handle int64, so double
+--        buf_append_intx(buffer,n,64,0xd3)
+         buf_append_double(buffer,n)
       end
     end
   else -- floating point
-    -- TODO poss. to use floats instead
-     error("double is not implemented")
+     buf_append_double(buffer,n)
   end
 end
 
@@ -218,7 +319,7 @@ local types_len_map = {
 local unpackers = {}
 
 local unpack_number = function(buf,offset,ntype,nlen)
---                         print("unpack_number: ntype:", ntype, " nlen:", nlen )
+--                         print("unpack_number: ntype:", ntype, " nlen:", nlen, "ofs:",offset, "nbuffer:",#buffer )
                          local b1,b2,b3,b4,b5,b6,b7,b8
                          if nlen>=2 then
                             b1 = buffer[offset+1]
@@ -253,6 +354,12 @@ local unpack_number = function(buf,offset,ntype,nlen)
                             if nn == -4294967296 then nn = 0 end
 --                            print( string.format("i32 bytes: %x %x %x %x ", b1, b2, b3, b4 ), n, nn )
                             return nn
+                         elseif ntype == "double_t" then
+--                            print( string.format("doublebytes networked: %x %x %x %x %x %x %x %x", b1, b2, b3, b4,b5,b6,b7,b8 ) )
+                            local s = ""..string.char(b8)..string.char(b7)..string.char(b6)..string.char(b5)..string.char(b4)..string.char(b3)..string.char(b2)..string.char(b1)
+--                            print(" unpack_double: slen:", string.len(s), b1, b2, b3, b4, b5, b6, b7, b8 )
+                            local n = bytestodouble( s )
+                            return n
                          else
                             error("unpack_number: not impl:" .. ntype )
                          end
@@ -264,8 +371,8 @@ local unpacker_number = function(buf,offset)
   local obj_type = type_for(buffer[offset+1])
   local nlen = types_len_map[obj_type]
   local ntype
-  if (obj_type == "float") or (obj_type == "double") then
-     error("float/double is not implemented")
+  if (obj_type == "float") then
+     error("float is not implemented")
   else
      ntype = obj_type .. "_t"
   end
