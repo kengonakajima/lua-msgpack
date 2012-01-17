@@ -27,6 +27,10 @@ local datasets = {
    { "str100", { makestr(100) } },
    { "str1000", { makestr(1000) } },
    { "str10000", { makestr(10000) } },
+   { "str20000", { makestr(20000) } },
+   { "str30000", { makestr(30000) } },
+   { "str40000", { makestr(40000) } },
+   { "str80000", { makestr(80000) } },               
 }
 
 for i,v in ipairs(datasets) do

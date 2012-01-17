@@ -25,6 +25,62 @@ local rcopy = function(dst,src,len)
   for i=0,n do dst[i] = src[n-i] end
 end
 
+-- fast string concatenator
+
+-- string append slow?
+
+function tabletostring(t)
+   assert(#t>0)
+
+   local newt={}
+   if #t == 1 then
+      return t[1]
+   end
+   
+   if (#t % 2) == 1 then
+      t[#t-1] = t[#t-1] .. t[#t]
+      table.remove(t, #t )
+   end
+   for i=1,#t,2 do
+--      print("iterate. i:",i)
+      table.insert(newt, t[i] .. t[i+1] )
+   end
+   return tabletostring(newt)
+end
+
+function tostrary(ary)
+   for i,v in ipairs(ary) do
+      ary[i] = string.char( band(v,0xff) )
+   end
+   return ary
+end
+
+function numarytostring(ary)
+   return tabletostring( tostrary(ary) )
+end
+
+function table_slice (values,i1,i2)
+   local res = {}
+   local n = #values
+   -- default values for range
+   i1 = i1 or 1
+   i2 = i2 or n
+   if i2 < 0 then
+      i2 = n + i2 + 1
+   elseif i2 > n then
+      i2 = n
+   end
+   if i1 < 1 or i1 > n then
+      return {}
+   end
+   local k = 1
+   for i = i1,i2 do
+      res[k] = values[i]
+      k = k + 1
+   end
+   return res
+end
+
 -- buffer
 
 local buffer={}
@@ -458,30 +514,33 @@ unpackers.double = unpacker_number
 
 unpackers.fixraw = function(buf,offset)
   local n = band(buf[offset+1],0x1f)
-  local b = ""
-  for i=1,n do
-     b = b .. string.char(buffer[offset+i+1])
-  end
+--  print("unpackers.fixraw: offset:", offset, "#buf:", #buf, "n:",n  )
+  local b
+  if n > 0 then
+     b = numarytostring( table_slice( buf, offset+1 +1, offset+1 +1 + n - 1 ) )
+  else
+     b = ""
+  end  
+--  for i=1,n do
+--     b = b .. string.char(buffer[offset+i+1])
+--  end
   return offset+n+1,b
 end
 
 unpackers.raw16 = function(buf,offset)
   local n = unpack_number(buf,offset+1,"uint16_t",2)
-  local b=""
---  print("unpackers.raw16: n:", n, string.format("%x", buf[offset+1]) )  
-  for i=1,n do
-     b = b .. string.char(buf[offset+i+1+2])
-  end
+  local b = numarytostring( table_slice( buf, offset+1 + 1+2, offset+1 + 1+2 + n - 1 ) )
+--  print("unpackers.raw16: n:", n, string.format("%x", buf[offset+1]) )
+--  for i=1,n do
+--     b = b .. string.char(buf[offset+i+1+2])
+--  end
   return offset+n+3,b 
 end
 
 unpackers.raw32 = function(buf,offset)
   local n = unpack_number(buf,offset+1,"uint32_t",4)
-  local b=""
 --  print("unpackers.raw32: n:", n, string.format("%x %x %x %x %x", buf[offset+1], buf[offset+2], buf[offset+3], buf[offset+4], buf[offset+5]) )
-  for i=1,n do     
-     b = b .. string.char(buf[offset+i+1+4])
-  end
+  local b = numarytostring( table_slice( buf, offset+1 + 1+4, offset+1 + 1+4 + n - 1 ) )
   return offset+n+5,b
 end
 
@@ -514,13 +573,7 @@ end
 local ljp_pack = function(data)
                     buffer={}
                     packers.dynamic(data)
-                    local s = ""
-
-                    for i,v in ipairs(buffer) do
---                       print( "ljp_pack: loop: i:", i, " char:", string.format("%x",v) )
-                       s = s .. string.char(band(v,0xff))
-                    end
---                    print("ljp_pack: buf:", string.format( "%x", buffer[1] ) )
+                    local s = numarytostring(buffer)
                     return s
                  end
 
@@ -529,7 +582,6 @@ local ljp_unpack = function(s,offset)
                       if type(s) ~= "string" then return false,"invalid argument" end
                       buffer={}
                       buf_append_str(buffer,s,#s)
---                      print("ljp_unpack: buflen:", #buffer )
                       local data
                       offset,data = unpackers.dynamic(buffer,offset)
                       return offset,data
