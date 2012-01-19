@@ -514,7 +514,7 @@ unpackers.double = unpacker_number
 
 unpackers.fixraw = function(buf,offset)
   local n = band(buf[offset+1],0x1f)
-  print("unpackers.fixraw: offset:", offset, "#buf:", #buf, "n:",n  )
+--  print("unpackers.fixraw: offset:", offset, "#buf:", #buf, "n:",n  )
   local b
   if ( #buf - 1 - offset ) < n then
      error("require more data")
@@ -525,9 +525,6 @@ unpackers.fixraw = function(buf,offset)
   else
      b = ""
   end  
---  for i=1,n do
---     b = b .. string.char(buffer[offset+i+1])
---  end
   return offset+n+1,b
 end
 
@@ -538,10 +535,6 @@ unpackers.raw16 = function(buf,offset)
   end
   
   local b = numarytostring( table_slice( buf, offset+1 + 1+2, offset+1 + 1+2 + n - 1 ) )
---  print("unpackers.raw16: n:", n, string.format("%x", buf[offset+1]) )
---  for i=1,n do
---     b = b .. string.char(buf[offset+i+1+2])
---  end
   return offset+n+3,b 
 end
 
