@@ -159,6 +159,49 @@ offset,res = pcall(function() mp.unpack(s) end)
 assert(offset)
 offset,res = pcall(function() mp.unpack(corrupt_tail) end)
 assert(not offset)
+-- corrupt string test
+ary = { 147,1,172,115,101,116,85,82,76,80,114,101,102,105,120,129,163,117,
+        114,108,180,104,116,116,112,58,47,47,49,48,46,48,46,49,46,55,58,56,48,57,49 }
+s = ""
+for i,v in ipairs(ary) do
+   s = s .. string.char(v)
+end
+offset,nr,res = pcall(function() return mp.unpack(s) end)
+assert(offset)
+assert(nr==#ary)
+assert(res[1]==1)
+assert(res[2]=="setURLPrefix")
+assert(res[3].url == "http://10.0.1.7:8091")
+corrupt_tail = string.sub( s, 1,31 )
+offset,nr,res = pcall(function() return mp.unpack(corrupt_tail) end)
+assert(not offset)
+
+-- corrupt test 3 (fixraw and raw16 and raw32)
+s = mp.pack( "shorterthan32bytes" )
+offset,nr,res = pcall(function() return mp.unpack(s) end)
+assert(offset)
+print("ASSSSSSSSS:",#s)
+assert(res=="shorterthan32bytes")
+corrupt_tail = string.sub( s, 1, 5 )
+offset,nr,res  = pcall( function() return mp.unpack(corrupt_tail) end)
+assert(not offset)
+
+local origs = "longer than 32bytes and shorter than 64k bytes string"
+s = mp.pack( origs )
+offset,nr,res = pcall(function() return mp.unpack(s) end)
+assert(offset)
+corrupt_tail = string.sub( s, 1, 5 )
+offset,nr,res = pcall( function() return mp.unpack( corrupt_tail ) end)
+assert(not offset)
+
+origs = rand_raw(70000)
+s = mp.pack(origs)
+offset,nr,res = pcall(function() return mp.unpack(s) end)
+assert(offset)
+corrupt_tail = string.sub( s, 1, 10 )
+offset,nr,res = pcall(function() return mp.unpack( corrupt_tail ) end)
+assert(not offset)
+
 
 -- Empty data test
 print("empty test")
