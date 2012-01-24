@@ -92,7 +92,6 @@ local buf_append_tbl = function(destt,t)
                        end
 
 local buf_append_str = function(destt,s,l)
-                          local t = {}
                           for i=1,l do
                              table.insert( destt, string.byte(s,i) )
                           end
