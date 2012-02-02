@@ -86,7 +86,7 @@ local function table_slice (values,i1,i2)
 end
 
 -- buffer
-local buffer={}
+local strbuf=""
 local strary={}
 
 local function strary_append_tbl(destt,t)
@@ -377,22 +377,17 @@ local types_len_map = {
 
 local unpackers = {}
 
-local unpack_number = function(buf,offset,ntype,nlen)
---                         print("unpack_number: ntype:", ntype, " nlen:", nlen, "ofs:",offset, "nbuffer:",#buffer )
+local unpack_number = function(offset,ntype,nlen)
+--                         print("unpack_number: ntype:", ntype, " nlen:", nlen, "ofs:",offset, "nstrbuf:",#strbuf )
                          local b1,b2,b3,b4,b5,b6,b7,b8
                          if nlen>=2 then
-                            b1 = buffer[offset+1]
-                            b2 = buffer[offset+2]
+                            b1,b2 = string.byte( strbuf, offset+1, offset+2 )
                          end
                          if nlen>=4 then
-                            b3 = buffer[offset+3]
-                            b4 = buffer[offset+4]
+                            b3,b4 = string.byte( strbuf, offset+3, offset+4 )
                          end
                          if nlen>=8 then
-                            b5 = buffer[offset+5]
-                            b6 = buffer[offset+6]                            
-                            b7 = buffer[offset+7]
-                            b8 = buffer[offset+8]
+                            b5,b6,b7,b8 = string.byte( strbuf, offset+5, offset+8 )
                          end
                             
                          if ntype == "uint16_t" then
@@ -426,82 +421,82 @@ local unpack_number = function(buf,offset,ntype,nlen)
 
 
 
-local unpacker_number = function(buf,offset)
-  local obj_type = type_for(buffer[offset+1])
-  local nlen = types_len_map[obj_type]
-  local ntype
-  if (obj_type == "float") then
-     error("float is not implemented")
-  else
-     ntype = obj_type .. "_t"
-  end
---  print("unpacker_number:  ntype:", ntype , " nlen:", nlen )
-  return offset+nlen+1,unpack_number(buf,offset+1,ntype,nlen)
+local function unpacker_number(offset)
+   local obj_type = type_for( string.byte( strbuf, offset+1, offset+1 ) )
+   local nlen = types_len_map[obj_type]
+   local ntype
+   if (obj_type == "float") then
+      error("float is not implemented")
+   else
+      ntype = obj_type .. "_t"
+   end
+   --  print("unpacker_number:  ntype:", ntype , " nlen:", nlen )
+   return offset+nlen+1,unpack_number(offset+1,ntype,nlen)
 end
 
-local unpack_map = function(buf,offset,n)
+local function unpack_map(offset,n)
   local r = {}
   local k,v
   for i=1,n do
-    offset,k = unpackers.dynamic(buf,offset)
-    offset,v = unpackers.dynamic(buf,offset)
+    offset,k = unpackers.dynamic(offset)
+    offset,v = unpackers.dynamic(offset)
     r[k] = v
   end
   return offset,r
 end
 
-local unpack_array = function(buf,offset,n)
+local function unpack_array(offset,n)
   local r = {}
-  for i=1,n do offset,r[i] = unpackers.dynamic(buf,offset) end
+  for i=1,n do offset,r[i] = unpackers.dynamic(offset) end
   return offset,r
 end
 
-unpackers.dynamic = function(buf,offset)
---                       print("unpackers.dynamic: buf:", buf, " ofs:", offset )
-                       if offset >= #buf then return nil,nil end
-                       local obj_type = type_for(buf[offset+1])
---                       print("unpackers.dynamic: type:", obj_type, string.format(" typebyte:%x", buf[offset+1]))
-                       return unpackers[obj_type](buf,offset)
-                    end
+function unpackers.dynamic(offset)
+--   print("unpackers.dynamic: strbuf:", strbuf, " ofs:", offset )
+   if offset >= #strbuf then return nil,nil end
+   local obj_type = type_for( string.byte( strbuf, offset+1, offset+1 ) )
+   --                       print("unpackers.dynamic: type:", obj_type, string.format(" typebyte:%x", buf[offset+1]))
+   return unpackers[obj_type](offset)
+end
 
-unpackers.undefined = function(buf,offset)
-                         error("unimplemented")
-                      end
+function unpackers.undefined(offset)
+   error("unimplemented")
+end
 
-unpackers["nil"] = function(buf,offset)
+unpackers["nil"] = function(offset)
                       return offset+1,nil
                    end
 
-unpackers["false"] = function(buf,offset)
+unpackers["false"] = function(offset)
                         return offset+1,false
                      end
 
-unpackers["true"] = function(buf,offset)
+unpackers["true"] = function(offset)
                        return offset+1,true
                     end
 
-unpackers.fixnum_posi = function(buf,offset)
-                          return offset+1,buffer[offset+1]
-                       end
+unpackers.fixnum_posi = function(offset)
+                           return offset+1, string.byte( strbuf, offset+1, offset+1) 
+                        end
 
-unpackers.uint8 = function(buf,offset)
-                     return offset+2,buffer[offset+2]
+unpackers.uint8 = function(offset)
+                     return offset+2, string.byte( strbuf, offset+2, offset+2 )
                   end
 
 unpackers.uint16 = unpacker_number
 unpackers.uint32 = unpacker_number
 unpackers.uint64 = unpacker_number
 
-unpackers.fixnum_neg = function(buf,offset)
+unpackers.fixnum_neg = function(offset)
                           -- alternative to cast below:
                           -- return offset+1,-band(bxor(buf.data[offset],0x1f),0x1f)-1
-                          local n = buffer[offset+1]
+                          local n = string.byte( strbuf, offset+1, offset+1)
                           local nn = ( 256 - n ) * -1
                           return offset+1,  nn
                        end
 
-unpackers.int8 = function(buf,offset)
-                    local i = buffer[offset+2]
+unpackers.int8 = function(offset)
+                    local i = string.byte( strbuf, offset+2, offset+2 )
                     if i > 127 then
                        i = (256 - i ) * -1
                     end
@@ -515,65 +510,68 @@ unpackers.int64 = unpacker_number
 unpackers.float = unpacker_number
 unpackers.double = unpacker_number
 
-unpackers.fixraw = function(buf,offset)
-  local n = band(buf[offset+1],0x1f)
---  print("unpackers.fixraw: offset:", offset, "#buf:", #buf, "n:",n  )
-  local b
-  if ( #buf - 1 - offset ) < n then
-     error("require more data")
-  end  
-  
-  if n > 0 then
-     b = numarytostring( table_slice( buf, offset+1 +1, offset+1 +1 + n - 1 ) )
-  else
-     b = ""
-  end  
-  return offset+n+1,b
-end
+unpackers.fixraw = function(offset)
+                      local n = band( string.byte( strbuf, offset+1, offset+1) ,0x1f)
+                      --  print("unpackers.fixraw: offset:", offset, "#buf:", #buf, "n:",n  )
+                      local b
+                      if ( #strbuf - 1 - offset ) < n then
+                         error("require more data")
+                      end  
+                      
+                      if n > 0 then
+--                         b = numarytostring( table_slice( buf, offset+1 +1, offset+1 +1 + n - 1 ) )
+                         b = string.sub( strbuf, offset + 1 + 1, offset + 1 + 1 + n - 1 )
+                      else
+                         b = ""
+                      end  
+                      return offset+n+1,b
+                   end
 
-unpackers.raw16 = function(buf,offset)
-  local n = unpack_number(buf,offset+1,"uint16_t",2)
-  if ( #buf - 1 - 2 - offset ) < n then
+unpackers.raw16 = function(offset)
+  local n = unpack_number(offset+1,"uint16_t",2)
+  if ( #strbuf - 1 - 2 - offset ) < n then
      error("require more data")
   end
   
-  local b = numarytostring( table_slice( buf, offset+1 + 1+2, offset+1 + 1+2 + n - 1 ) )
+--  local b = numarytostring( table_slice( buf, offset+1 + 1+2, offset+1 + 1+2 + n - 1 ) )
+  local b = string.sub( strbuf, offset+1+1+2, offset+1 + 1+2 + n - 1 )
   return offset+n+3,b 
 end
 
-unpackers.raw32 = function(buf,offset)
-  local n = unpack_number(buf,offset+1,"uint32_t",4)
-  if ( #buf  - 1 - 4 - offset ) < n then
-     error( "require more data")
-  end  
---  print("unpackers.raw32: n:", n, string.format("%x %x %x %x %x", buf[offset+1], buf[offset+2], buf[offset+3], buf[offset+4], buf[offset+5]) )
-  local b = numarytostring( table_slice( buf, offset+1 + 1+4, offset+1 + 1+4 + n - 1 ) )
-  return offset+n+5,b
-end
+unpackers.raw32 = function(offset)
+                     local n = unpack_number(offset+1,"uint32_t",4)
+                     if ( #strbuf  - 1 - 4 - offset ) < n then
+                        error( "require more data")
+                     end  
+                     --  print("unpackers.raw32: n:", n, string.format("%x %x %x %x %x", buf[offset+1], buf[offset+2], buf[offset+3], buf[offset+4], buf[offset+5]) )
+--                     local b = numarytostring( table_slice( buf, offset+1 + 1+4, offset+1 + 1+4 + n - 1 ) )
+                     local b = string.sub( strbuf, offset+1+ 1+4, offset+1 + 1+4 +n -1 )
+                     return offset+n+5,b
+                  end
 
-unpackers.fixarray = function(buf,offset)
-  return unpack_array(buf,offset+1,band(buffer[offset+1],0x0f))
-end
+unpackers.fixarray = function(offset)
+                        return unpack_array( offset+1,band( string.byte( strbuf, offset+1,offset+1),0x0f))
+                     end
 
-unpackers.array16 = function(buf,offset)
-  return unpack_array(buf,offset+3,unpack_number(buf,offset+1,"uint16_t",2))
-end
+unpackers.array16 = function(offset)
+                       return unpack_array(offset+3,unpack_number(offset+1,"uint16_t",2)) --- +1 ... could be bug? TODO
+                    end
 
-unpackers.array32 = function(buf,offset)
-  return unpack_array(buf,offset+5,unpack_number(buf,offset,"uint32_t",4))
-end
+unpackers.array32 = function(offset)
+                       return unpack_array(offset+5,unpack_number(offset,"uint32_t",4))
+                    end
 
-unpackers.fixmap = function(buf,offset)
-  return unpack_map(buf,offset+1,band(buffer[offset+1],0x0f))
-end
+unpackers.fixmap = function(offset)
+                      return unpack_map(offset+1,band( string.byte( strbuf, offset+1,offset+1),0x0f))
+                   end
 
-unpackers.map16 = function(buf,offset)
-  return unpack_map(buf,offset+3,unpack_number(buf,offset,"uint16_t",2))
-end
+unpackers.map16 = function(offset)
+                     return unpack_map(offset+3,unpack_number(offset,"uint16_t",2))
+                  end
 
-unpackers.map32 = function(buf,offset)
-  return unpack_map(buf,offset+5,unpack_number(buf,offset,"uint32_t",4))
-end
+unpackers.map32 = function(offset)
+                     return unpack_map(offset+5,unpack_number(offset,"uint32_t",4))
+                  end
 
 -- Main functions
 
@@ -588,9 +586,9 @@ local ljp_pack = function(data)
 local ljp_unpack = function(s,offset)
                       if offset == nil then offset = 0 end
                       if type(s) ~= "string" then return false,"invalid argument" end
-                      buffer = stringtonumary(s)
                       local data
-                      offset,data = unpackers.dynamic(buffer,offset)
+                      strbuf = s
+                      offset,data = unpackers.dynamic(offset)
                       return offset,data
                    end
 

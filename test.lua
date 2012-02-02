@@ -104,11 +104,16 @@ local offset,res
 printf("Custom tests ")
 for i=0,#data do -- 0 tests nil!
    print("test i:",i)
-   offset,res = mp.unpack(mp.pack(data[i]))
-   assert(offset,"decoding failed")
+   local packed = mp.pack(data[i])
+   offset,res = mp.unpack(packed)
+   assert(offset,"decoding failed." )
    if not deepcompare(res,data[i]) then
       display("expected",data[i])
       display("found",res)
+      print( "packed len:", #packed )
+      for j=1,#packed do
+         print( packed[j] )
+      end      
       assert(false,string.format("wrong value %d",i))
    end
 end

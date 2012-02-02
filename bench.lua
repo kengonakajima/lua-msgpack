@@ -23,7 +23,7 @@ function makestr(n)
 end
 
 local datasets = {
-
+   
    { "empty", {} },
    
    { "iary1", {1} },
@@ -45,7 +45,7 @@ local datasets = {
    { "str20000", { makestr(20000) } },
    { "str30000", { makestr(30000) } },
    { "str40000", { makestr(40000) } },
-   { "str80000", { makestr(80000) } },               
+   { "str80000", { makestr(80000) } },
 }
 
 for i,v in ipairs(datasets) do
