@@ -25,11 +25,8 @@ local rcopy = function(dst,src,len)
   for i=0,n do dst[i] = src[n-i] end
 end
 
--- fast string concatenator
-
--- string append slow?
-
-function tabletostring(t)
+-- fast string concatenator by binary tree
+local function tabletostring(t)
    assert(#t>0)
 
    local newt={}
@@ -48,18 +45,25 @@ function tabletostring(t)
    return tabletostring(newt)
 end
 
-function tostrary(ary)
+local function tostrary(ary)
    for i,v in ipairs(ary) do
       ary[i] = string.char( band(v,0xff) )
    end
    return ary
 end
 
-function numarytostring(ary)
+local function numarytostring(ary)
    return tabletostring( tostrary(ary) )
 end
+local function stringtonumary(s)
+   local out = {}
+   for i=1,#s do
+      out[i] = string.byte(s,i,i)
+   end
+   return out
+end
 
-function table_slice (values,i1,i2)
+local function table_slice (values,i1,i2)
    local res = {}
    local n = #values
    -- default values for range
@@ -82,41 +86,37 @@ function table_slice (values,i1,i2)
 end
 
 -- buffer
-
 local buffer={}
+local strary={}
 
-local buf_append_tbl = function(destt,t)
-                          for i=1,#t do
-                             table.insert(destt, t[i])
-                          end
-                       end
+local function strary_append_tbl(destt,t)
+   table.insert(destt, numarytostring(t))
+end
 
-local buf_append_str = function(destt,s,l)
-                          for i=1,l do
-                             table.insert( destt, string.byte(s,i) )
-                          end
-                       end
+local function strary_append_str(destt,s)
+   table.insert( destt, s )
+end
 
-local buf_append_intx
+local strary_append_intx
 if LITTLE_ENDIAN then
-   buf_append_intx = function(destt,n,x,h)
+   strary_append_intx = function(destt,n,x,h)
                         local t = {h}
                         for i=x-8,0,-8 do t[#t+1] = band(rshift(n,i),0xff) end
-                        buf_append_tbl(destt,t)
+                        strary_append_tbl(destt,t)
                      end
 else
-   buf_append_intx = function(destt,n,x,h)
+   strary_append_intx = function(destt,n,x,h)
                         local t = {h}
                         for i=0,x-8,8 do t[#t+1] = band(rshift(n,i),0xff) end
-                        buf_append_tbl(destt,t)
+                        strary_append_tbl(destt,t)
                      end
 end
-local buf_append_double = function(destt,n)
+local strary_append_double = function(destt,n)
                              -- assume double
                              local b = doubleto8bytes(n)
 --                             print( string.format( "doubleto8bytes: %x %x %x %x %x %x %x %x", b:byte(1), b:byte(2), b:byte(3), b:byte(4), b:byte(5), b:byte(6), b:byte(7), b:byte(8)))
-                             buf_append_tbl(destt,{0xcb})
-                             buf_append_str(destt,string.reverse(b), 8 ) -- make big endian double precision 
+                             strary_append_tbl(destt,{0xcb})
+                             strary_append_str(destt,string.reverse(b) ) -- make big endian double precision 
                           end
 
 
@@ -154,7 +154,7 @@ function doubleto8bytes(x)
    return v
 end
 
-function bitstofrac(ary)
+local function bitstofrac(ary)
    local x = 0
    local cur = 0.5
    for i,v in ipairs(ary) do
@@ -164,7 +164,7 @@ function bitstofrac(ary)
    return x   
 end
 
-function bytestobits(ary)
+local function bytestobits(ary)
    local out={}
    for i,v in ipairs(ary) do
       for j=0,7,1 do
@@ -174,7 +174,7 @@ function bytestobits(ary)
    return out
 end
 
-function dumpbits(ary)
+local function dumpbits(ary)
    local s=""
    for i,v in ipairs(ary) do
       s = s .. v .. " "
@@ -184,7 +184,7 @@ function dumpbits(ary)
 end
 
 -- get little endian
-function bytestodouble(v)
+local function bytestodouble(v)
    -- sign:1bit
    -- exp: 11bit (2048, bias=1023)
    local sign = math.floor(v:byte(8) / 128)
@@ -221,14 +221,14 @@ packers.dynamic = function(data)
 end
 
 packers["nil"] = function(data)
-  buf_append_tbl(buffer,{0xc0})
+  strary_append_tbl(strary,{0xc0})
 end
 
 packers.boolean = function(data)
   if data then -- pack true
-    buf_append_tbl(buffer,{0xc3})
+    strary_append_tbl(strary,{0xc3})
   else -- pack false
-    buf_append_tbl(buffer,{0xc2})
+    strary_append_tbl(strary,{0xc2})
   end
 end
 
@@ -236,48 +236,48 @@ packers.number = function(n)
   if math.floor(n) == n then -- integer
     if n >= 0 then -- positive integer
       if n < 128 then -- positive fixnum
-        buf_append_tbl(buffer,{n})
+        strary_append_tbl(strary,{n})
       elseif n < 256 then -- uint8
-        buf_append_tbl(buffer,{0xcc,n})
+        strary_append_tbl(strary,{0xcc,n})
       elseif n < 65536 then -- uint16
-        buf_append_intx(buffer,n,16,0xcd)
+        strary_append_intx(strary,n,16,0xcd)
       elseif n < 4294967296 then -- uint32
-        buf_append_intx(buffer,n,32,0xce)
+        strary_append_intx(strary,n,32,0xce)
       else -- lua cannot handle uint64, so double
---        buf_append_intx(buffer,n,64,0xcf)
-         buf_append_double(buffer,n)
+--        strary_append_intx(strary,n,64,0xcf)
+         strary_append_double(strary,n)
       end
     else -- negative integer
       if n >= -32 then -- negative fixnum
-        buf_append_tbl(buffer,{bor(0xe0,n)})
+        strary_append_tbl(strary,{bor(0xe0,n)})
       elseif n >= -128 then -- int8
-        buf_append_tbl(buffer,{0xd0,n})
+        strary_append_tbl(strary,{0xd0,n})
       elseif n >= -32768 then -- int16
-        buf_append_intx(buffer,n,16,0xd1)
+        strary_append_intx(strary,n,16,0xd1)
       elseif n >= -2147483648 then -- int32
-        buf_append_intx(buffer,n,32,0xd2)
+        strary_append_intx(strary,n,32,0xd2)
       else -- luca cannot handle int64, so double
---        buf_append_intx(buffer,n,64,0xd3)
-         buf_append_double(buffer,n)
+--        strary_append_intx(strary,n,64,0xd3)
+         strary_append_double(strary,n)
       end
     end
   else -- floating point
-     buf_append_double(buffer,n)
+     strary_append_double(strary,n)
   end
 end
 
 packers.string = function(data)
   local n = #data
   if n < 32 then
-    buf_append_tbl(buffer,{bor(0xa0,n)})
+    strary_append_tbl(strary,{bor(0xa0,n)})
   elseif n < 65536 then
-    buf_append_intx(buffer,n,16,0xda)
+    strary_append_intx(strary,n,16,0xda)
   elseif n < 4294967296 then
-    buf_append_intx(buffer,n,32,0xdb)
+    strary_append_intx(strary,n,32,0xdb)
   else
     error("overflow")
   end
-  buf_append_str(buffer,data,n)
+  strary_append_str(strary,data)
 end
 
 packers["function"] = function(data)
@@ -302,11 +302,11 @@ packers.table = function(data)
   end
   if is_map then -- pack as map
     if ndata < 16 then
-      buf_append_tbl(buffer,{bor(0x80,ndata)})
+      strary_append_tbl(strary,{bor(0x80,ndata)})
     elseif ndata < 65536 then
-      buf_append_intx(buffer,ndata,16,0xde)
+      strary_append_intx(strary,ndata,16,0xde)
     elseif ndata < 4294967296 then
-      buf_append_intx(buffer,ndata,32,0xdf)
+      strary_append_intx(strary,ndata,32,0xdf)
     else
       error("overflow")
     end
@@ -316,11 +316,11 @@ packers.table = function(data)
     end
   else -- pack as array
     if nmax < 16 then
-      buf_append_tbl(buffer,{bor(0x90,nmax)})
+      strary_append_tbl(strary,{bor(0x90,nmax)})
     elseif nmax < 65536 then
-      buf_append_intx(buffer,nmax,16,0xdc)
+      strary_append_intx(strary,nmax,16,0xdc)
     elseif nmax < 4294967296 then
-      buf_append_intx(buffer,nmax,32,0xdd)
+      strary_append_intx(strary,nmax,32,0xdd)
     else
       error("overflow")
     end
@@ -353,9 +353,10 @@ local types_map = {
   }
 
 local type_for = function(n)
+                    
   if types_map[n] then return types_map[n]
   elseif n < 0xc0 then
-    if n < 0x80 then return "fixnum_pos"
+    if n < 0x80 then return "fixnum_posi"
     elseif n < 0x90 then return "fixmap"
     elseif n < 0xa0 then return "fixarray"
     else return "fixraw" end
@@ -368,6 +369,9 @@ local types_len_map = {
   int16 = 2, int32 = 4, int64 = 8,
   float = 4, double = 8,
 }
+
+
+
 
 --- unpackers
 
@@ -476,7 +480,7 @@ unpackers["true"] = function(buf,offset)
                        return offset+1,true
                     end
 
-unpackers.fixnum_pos = function(buf,offset)
+unpackers.fixnum_posi = function(buf,offset)
                           return offset+1,buffer[offset+1]
                        end
 
@@ -574,17 +578,17 @@ end
 -- Main functions
 
 local ljp_pack = function(data)
-                    buffer={}
+                    strary={}
                     packers.dynamic(data)
-                    local s = numarytostring(buffer)
+                    local s = tabletostring(strary)
+--                    print("strary len:", #strary, strary[1], s,  string.sub(s,1) )                    
                     return s
                  end
 
 local ljp_unpack = function(s,offset)
                       if offset == nil then offset = 0 end
                       if type(s) ~= "string" then return false,"invalid argument" end
-                      buffer={}
-                      buf_append_str(buffer,s,#s)
+                      buffer = stringtonumary(s)
                       local data
                       offset,data = unpackers.dynamic(buffer,offset)
                       return offset,data
