@@ -11,6 +11,7 @@ else
    luabit = require "bit"
 end
 
+local tostr = string.char
 
 -- cache bitops
 local bor,band,bxor,rshift = luabit.bor,luabit.band,luabit.bxor,luabit.brshift
@@ -20,107 +21,37 @@ end
 
 -- endianness
 local LITTLE_ENDIAN = true
-local rcopy = function(dst,src,len)
-  local n = len-1
-  for i=0,n do dst[i] = src[n-i] end
-end
-
--- fast string concatenator by binary tree
-local function tabletostring(t)
-   assert(#t>0)
-
-   local newt={}
-   if #t == 1 then
-      return t[1]
-   end
-   
-   if (#t % 2) == 1 then
-      t[#t-1] = t[#t-1] .. t[#t]
-      table.remove(t, #t )
-   end
-   for i=1,#t,2 do
---      print("iterate. i:",i)
-      table.insert(newt, t[i] .. t[i+1] )
-   end
-   return tabletostring(newt)
-end
-
-local function tostrary(ary)
-   for i,v in ipairs(ary) do
-      ary[i] = string.char( band(v,0xff) )
-   end
-   return ary
-end
-
-local function numarytostring(ary)
-   return tabletostring( tostrary(ary) )
-end
-local function stringtonumary(s)
-   local out = {}
-   for i=1,#s do
-      out[i] = string.byte(s,i,i)
-   end
-   return out
-end
-
-local function table_slice (values,i1,i2)
-   local res = {}
-   local n = #values
-   -- default values for range
-   i1 = i1 or 1
-   i2 = i2 or n
-   if i2 < 0 then
-      i2 = n + i2 + 1
-   elseif i2 > n then
-      i2 = n
-   end
-   if i1 < 1 or i1 > n then
-      return {}
-   end
-   local k = 1
-   for i = i1,i2 do
-      res[k] = values[i]
-      k = k + 1
-   end
-   return res
-end
 
 -- buffer
-local strbuf=""
-local strary={}
+local strbuf="" -- for unpacking
+local strary={} -- for packing
 
-local function strary_append_tbl(destt,t)
-   table.insert(destt, numarytostring(t))
-end
 
-local function strary_append_str(destt,s)
-   table.insert( destt, s )
-end
+local strary_append_int16, strary_append_int32
 
-local strary_append_intx
 if LITTLE_ENDIAN then
-   strary_append_intx = function(destt,n,x,h)
-                        local t = {h}
-                        for i=x-8,0,-8 do t[#t+1] = band(rshift(n,i),0xff) end
-                        strary_append_tbl(destt,t)
-                     end
+   strary_append_int16 = function(n,h)
+                            table.insert( strary, tostr(h, band(rshift(n,8),0xff), band(n,0xff) ) )
+                         end
+   strary_append_int32 = function(n,h)
+                            table.insert( strary, tostr(h, band(rshift(n,24),0xff), band(rshift(n,16),0xff), band(rshift(n,8),0xff), band(n,0xff)))
+                         end   
 else
-   strary_append_intx = function(destt,n,x,h)
-                        local t = {h}
-                        for i=0,x-8,8 do t[#t+1] = band(rshift(n,i),0xff) end
-                        strary_append_tbl(destt,t)
-                     end
+   strary_append_int16 = function(n,h)
+                            table.insert( strary, tostr(h, band(n,0xff), band(rshift(n,8),0xff) ))
+                         end
+   strary_append_int32 = function(n,h)
+                            table.insert( strary, tostr(h, band(n,0xff), band(rshift(n,8),0xff), band(rshift(n,16),0xff),band(rshift(n,24),0xff) ))
+                         end
 end
-local strary_append_double = function(destt,n)
+
+local strary_append_double = function(n)
                              -- assume double
                              local b = doubleto8bytes(n)
 --                             print( string.format( "doubleto8bytes: %x %x %x %x %x %x %x %x", b:byte(1), b:byte(2), b:byte(3), b:byte(4), b:byte(5), b:byte(6), b:byte(7), b:byte(8)))
-                             strary_append_tbl(destt,{0xcb})
-                             strary_append_str(destt,string.reverse(b) ) -- make big endian double precision 
+                             table.insert( strary, tostr(0xcb))
+                             table.insert( strary, string.reverse(b) )   -- reverse: make big endian double precision
                           end
-
-
-
 
 
 --- IEEE 754
@@ -128,8 +59,7 @@ local strary_append_double = function(destt,n)
 -- out little endian
 function doubleto8bytes(x)
    local function grab_byte(v)
-      return math.floor(v / 256),
-      string.char(math.mod(math.floor(v), 256))
+      return math.floor(v / 256), tostr(math.mod(math.floor(v), 256))
    end
    local sign = 0
    if x < 0 then sign = 1; x = -x end
@@ -206,7 +136,7 @@ local function bytestodouble(v)
    if exp == 1024 and frac==0 then return 1/0 *sign end
    local real = math.ldexp(1+frac,exp)
 
---   print( "sign:", sign, "exp:", exp,  "frac:", frac, "real:", real )
+--   print( "sign:", sign, "exp:", exp,  "frac:", frac, "real:", real, "v:", v:byte(1),v:byte(2),v:byte(3),v:byte(4),v:byte(5),v:byte(6),v:byte(7),v:byte(8) )
    return real * sign
 end
 
@@ -217,67 +147,65 @@ end
 local packers = {}
 
 packers.dynamic = function(data)
-  return packers[type(data)](data)
-end
+                     return packers[type(data)](data)
+                  end
 
 packers["nil"] = function(data)
-  strary_append_tbl(strary,{0xc0})
-end
+                    table.insert( strary, tostr(0xc0))
+                 end
 
 packers.boolean = function(data)
-  if data then -- pack true
-    strary_append_tbl(strary,{0xc3})
-  else -- pack false
-    strary_append_tbl(strary,{0xc2})
-  end
-end
+                     if data then -- pack true
+                        table.insert( strary, tostr(0xc3))
+                     else -- pack false
+                        table.insert( strary, tostr(0xc2))
+                     end
+                  end
 
 packers.number = function(n)
   if math.floor(n) == n then -- integer
     if n >= 0 then -- positive integer
       if n < 128 then -- positive fixnum
-        strary_append_tbl(strary,{n})
+         table.insert( strary, tostr(n))
       elseif n < 256 then -- uint8
-        strary_append_tbl(strary,{0xcc,n})
+         table.insert(strary, tostr(0xcc,n))
       elseif n < 65536 then -- uint16
-        strary_append_intx(strary,n,16,0xcd)
+        strary_append_int16(n,0xcd)
       elseif n < 4294967296 then -- uint32
-        strary_append_intx(strary,n,32,0xce)
+        strary_append_int32(n,0xce)
       else -- lua cannot handle uint64, so double
---        strary_append_intx(strary,n,64,0xcf)
-         strary_append_double(strary,n)
+         strary_append_double(n)
       end
     else -- negative integer
       if n >= -32 then -- negative fixnum
-        strary_append_tbl(strary,{bor(0xe0,n)})
+         table.insert( strary, tostr(band(bor(0xe0,n),0xff) ))
       elseif n >= -128 then -- int8
-        strary_append_tbl(strary,{0xd0,n})
+         table.insert( strary, tostr(0xd0,band(n,0xff)))
       elseif n >= -32768 then -- int16
-        strary_append_intx(strary,n,16,0xd1)
+        strary_append_int16(n,0xd1)
       elseif n >= -2147483648 then -- int32
-        strary_append_intx(strary,n,32,0xd2)
-      else -- luca cannot handle int64, so double
---        strary_append_intx(strary,n,64,0xd3)
-         strary_append_double(strary,n)
+        strary_append_int32(n,0xd2)
+      else -- lua cannot handle int64, so double
+         strary_append_double(n)
       end
     end
   else -- floating point
-     strary_append_double(strary,n)
+     strary_append_double(n)
   end
 end
 
 packers.string = function(data)
   local n = #data
   if n < 32 then
-    strary_append_tbl(strary,{bor(0xa0,n)})
+     table.insert( strary, tostr(bor(0xa0,n) ))
   elseif n < 65536 then
-    strary_append_intx(strary,n,16,0xda)
+    strary_append_int16(n,0xda)
   elseif n < 4294967296 then
-    strary_append_intx(strary,n,32,0xdb)
+    strary_append_int32(n,0xdb)
   else
     error("overflow")
   end
-  strary_append_str(strary,data)
+  table.insert( strary, data)
 end
 
 packers["function"] = function(data)
@@ -302,11 +230,11 @@ packers.table = function(data)
   end
   if is_map then -- pack as map
     if ndata < 16 then
-      strary_append_tbl(strary,{bor(0x80,ndata)})
+       table.insert( strary, tostr(bor(0x80,ndata)))
     elseif ndata < 65536 then
-      strary_append_intx(strary,ndata,16,0xde)
+      strary_append_int16(ndata,0xde)
     elseif ndata < 4294967296 then
-      strary_append_intx(strary,ndata,32,0xdf)
+      strary_append_int32(ndata,0xdf)
     else
       error("overflow")
     end
@@ -316,11 +244,11 @@ packers.table = function(data)
     end
   else -- pack as array
     if nmax < 16 then
-      strary_append_tbl(strary,{bor(0x90,nmax)})
+       table.insert( strary, tostr( bor(0x90,nmax) ) )
     elseif nmax < 65536 then
-      strary_append_intx(strary,nmax,16,0xdc)
+      strary_append_int16(nmax,0xdc)
     elseif nmax < 4294967296 then
-      strary_append_intx(strary,nmax,32,0xdd)
+      strary_append_int32(nmax,0xdd)
     else
       error("overflow")
     end
@@ -410,7 +338,7 @@ local unpack_number = function(offset,ntype,nlen)
                             return nn
                          elseif ntype == "double_t" then
 --                            print( string.format("doublebytes networked: %x %x %x %x %x %x %x %x", b1, b2, b3, b4,b5,b6,b7,b8 ) )
-                            local s = ""..string.char(b8)..string.char(b7)..string.char(b6)..string.char(b5)..string.char(b4)..string.char(b3)..string.char(b2)..string.char(b1)
+                            local s = tostr(b8,b7,b6,b5,b4,b3,b2,b1)                            
 --                            print(" unpack_double: slen:", string.len(s), b1, b2, b3, b4, b5, b6, b7, b8 )
                             local n = bytestodouble( s )
                             return n
@@ -519,7 +447,6 @@ unpackers.fixraw = function(offset)
                       end  
                       
                       if n > 0 then
---                         b = numarytostring( table_slice( buf, offset+1 +1, offset+1 +1 + n - 1 ) )
                          b = string.sub( strbuf, offset + 1 + 1, offset + 1 + 1 + n - 1 )
                       else
                          b = ""
@@ -532,8 +459,6 @@ unpackers.raw16 = function(offset)
   if ( #strbuf - 1 - 2 - offset ) < n then
      error("require more data")
   end
-  
---  local b = numarytostring( table_slice( buf, offset+1 + 1+2, offset+1 + 1+2 + n - 1 ) )
   local b = string.sub( strbuf, offset+1+1+2, offset+1 + 1+2 + n - 1 )
   return offset+n+3,b 
 end
@@ -544,7 +469,6 @@ unpackers.raw32 = function(offset)
                         error( "require more data")
                      end  
                      --  print("unpackers.raw32: n:", n, string.format("%x %x %x %x %x", buf[offset+1], buf[offset+2], buf[offset+3], buf[offset+4], buf[offset+5]) )
---                     local b = numarytostring( table_slice( buf, offset+1 + 1+4, offset+1 + 1+4 + n - 1 ) )
                      local b = string.sub( strbuf, offset+1+ 1+4, offset+1 + 1+4 +n -1 )
                      return offset+n+5,b
                   end
@@ -578,7 +502,7 @@ unpackers.map32 = function(offset)
 local ljp_pack = function(data)
                     strary={}
                     packers.dynamic(data)
-                    local s = tabletostring(strary)
+                    local s = table.concat(strary,"")
 --                    print("strary len:", #strary, strary[1], s,  string.sub(s,1) )                    
                     return s
                  end
