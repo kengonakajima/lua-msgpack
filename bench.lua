@@ -24,10 +24,6 @@ end
 local nloop = 5000
 local datasets = {
 
-      { "dary1", {1.5e+35}, 100 },
-   { "dary10", makedary(10), 50 },
-   { "dary100", makedary(100), 5 },
-   { "dary1000", makedary(1000), 5 },
    
    { "empty", {}, nloop },
    
@@ -36,7 +32,7 @@ local datasets = {
    { "iary100", makeiary(100), nloop/10 },
    { "iary1000", makeiary(1000), nloop/100 },
    { "iary10000", makeiary(10000), nloop/1000 },
-
+   
    { "dary1", {1.5e+35}, 100 },
    { "dary10", makedary(10), 50 },
    { "dary100", makedary(100), 5 },

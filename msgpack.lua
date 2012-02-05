@@ -19,31 +19,35 @@ if not rshift then -- luajit differ from luabit
    rshift = luabit.rshift
 end 
 
--- endianness
-local LITTLE_ENDIAN = true
+local function byte_mod(x,v)
+   if x < 0 then
+      x = x + 256
+   end
+   return (x%v)
+end
+
 
 -- buffer
 local strbuf="" -- for unpacking
 local strary={} -- for packing
 
 
-local strary_append_int16, strary_append_int32
-
-if LITTLE_ENDIAN then
-   strary_append_int16 = function(n,h)
-                            table.insert( strary, tostr(h, band(rshift(n,8),0xff), band(n,0xff) ) )
-                         end
-   strary_append_int32 = function(n,h)
-                            table.insert( strary, tostr(h, band(rshift(n,24),0xff), band(rshift(n,16),0xff), band(rshift(n,8),0xff), band(n,0xff)))
-                         end   
-else
-   strary_append_int16 = function(n,h)
-                            table.insert( strary, tostr(h, band(n,0xff), band(rshift(n,8),0xff) ))
-                         end
-   strary_append_int32 = function(n,h)
-                            table.insert( strary, tostr(h, band(n,0xff), band(rshift(n,8),0xff), band(rshift(n,16),0xff),band(rshift(n,24),0xff) ))
-                         end
+local function strary_append_int16(n,h)
+   if n < 0 then
+      n = n + 65536
+   end
+   table.insert( strary, tostr(h, math.floor(n / 256), n % 256 ) )
 end
+local function strary_append_int32(n,h)
+   if n < 0 then
+      n = n  + 4294967296
+   end
+   table.insert( strary, tostr(h,
+                               math.floor(n/16777216),
+                               math.floor(n/65536) %256,
+                               math.floor(n/256) % 256,
+                               n % 256 ) )
+end   
 
 local strary_append_double = function(n)
                              -- assume double
@@ -98,7 +102,7 @@ local function bytestobits(ary)
    local out={}
    for i,v in ipairs(ary) do
       for j=0,7,1 do
-         table.insert(out, luabit.band( luabit.brshift(v,7-j), 1 ) )
+         table.insert(out, band( rshift(v,7-j), 1 ) )
       end
    end
    return out
@@ -118,10 +122,10 @@ local function bytestodouble(v)
    -- sign:1bit
    -- exp: 11bit (2048, bias=1023)
    local sign = math.floor(v:byte(8) / 128)
-   local exp = luabit.band( v:byte(8), 127 ) * 16 + luabit.brshift( v:byte(7), 4 ) - 1023 -- bias
+   local exp = band( v:byte(8), 127 ) * 16 + rshift( v:byte(7), 4 ) - 1023 -- bias
    -- frac: 52 bit
    local fracbytes = {
-      luabit.band( v:byte(7), 15 ), v:byte(6), v:byte(5), v:byte(4), v:byte(3), v:byte(2), v:byte(1) -- big endian
+      band( v:byte(7), 15 ), v:byte(6), v:byte(5), v:byte(4), v:byte(3), v:byte(2), v:byte(1) -- big endian
    }
    local bits = bytestobits(fracbytes)
    
@@ -178,9 +182,9 @@ packers.number = function(n)
       end
     else -- negative integer
       if n >= -32 then -- negative fixnum
-         table.insert( strary, tostr(band(bor(0xe0,n),0xff) ))
+         table.insert( strary, tostr( 0xe0 + ((n+256)%32)) )
       elseif n >= -128 then -- int8
-         table.insert( strary, tostr(0xd0,band(n,0xff)))
+         table.insert( strary, tostr(0xd0,byte_mod(n,0x100)))
       elseif n >= -32768 then -- int16
         strary_append_int16(n,0xd1)
       elseif n >= -2147483648 then -- int32
@@ -197,7 +201,7 @@ end
 packers.string = function(data)
   local n = #data
   if n < 32 then
-     table.insert( strary, tostr(bor(0xa0,n) ))
+     table.insert( strary, tostr( 0xa0+n ) )
   elseif n < 65536 then
     strary_append_int16(n,0xda)
   elseif n < 4294967296 then
@@ -230,7 +234,7 @@ packers.table = function(data)
   end
   if is_map then -- pack as map
     if ndata < 16 then
-       table.insert( strary, tostr(bor(0x80,ndata)))
+       table.insert( strary, tostr(0x80+ndata))
     elseif ndata < 65536 then
       strary_append_int16(ndata,0xde)
     elseif ndata < 4294967296 then
@@ -244,7 +248,7 @@ packers.table = function(data)
     end
   else -- pack as array
     if nmax < 16 then
-       table.insert( strary, tostr( bor(0x90,nmax) ) )
+       table.insert( strary, tostr( 0x90+nmax ) )
     elseif nmax < 65536 then
       strary_append_int16(nmax,0xdc)
     elseif nmax < 4294967296 then
@@ -417,7 +421,6 @@ unpackers.uint64 = unpacker_number
 
 unpackers.fixnum_neg = function(offset)
                           -- alternative to cast below:
-                          -- return offset+1,-band(bxor(buf.data[offset],0x1f),0x1f)-1
                           local n = string.byte( strbuf, offset+1, offset+1)
                           local nn = ( 256 - n ) * -1
                           return offset+1,  nn
@@ -439,7 +442,7 @@ unpackers.float = unpacker_number
 unpackers.double = unpacker_number
 
 unpackers.fixraw = function(offset)
-                      local n = band( string.byte( strbuf, offset+1, offset+1) ,0x1f)
+                      local n = byte_mod( string.byte( strbuf, offset+1, offset+1) ,0x1f+1)
                       --  print("unpackers.fixraw: offset:", offset, "#buf:", #buf, "n:",n  )
                       local b
                       if ( #strbuf - 1 - offset ) < n then
@@ -474,7 +477,7 @@ unpackers.raw32 = function(offset)
                   end
 
 unpackers.fixarray = function(offset)
-                        return unpack_array( offset+1,band( string.byte( strbuf, offset+1,offset+1),0x0f))
+                        return unpack_array( offset+1,byte_mod( string.byte( strbuf, offset+1,offset+1),0x0f+1))
                      end
 
 unpackers.array16 = function(offset)
@@ -486,7 +489,7 @@ unpackers.array32 = function(offset)
                     end
 
 unpackers.fixmap = function(offset)
-                      return unpack_map(offset+1,band( string.byte( strbuf, offset+1,offset+1),0x0f))
+                      return unpack_map(offset+1,byte_mod( string.byte( strbuf, offset+1,offset+1),0x0f+1))
                    end
 
 unpackers.map16 = function(offset)
