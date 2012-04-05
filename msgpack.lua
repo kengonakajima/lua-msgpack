@@ -212,15 +212,15 @@ packers.string = function(data)
 end
 
 packers["function"] = function(data)
-  error("unimplemented")
+  error("unimplemented:function")
 end
 
 packers.userdata = function(data)
-  error("unimplemented")
+  error("unimplemented:userdata")
 end
 
 packers.thread = function(data)
-  error("unimplemented")
+  error("unimplemented:thread")
 end
 
 packers.table = function(data)
@@ -396,7 +396,7 @@ function unpackers.dynamic(offset)
 end
 
 function unpackers.undefined(offset)
-   error("unimplemented")
+   error("unimplemented:undefined")
 end
 
 unpackers["nil"] = function(offset)
