@@ -13,6 +13,9 @@ end
 
 local tostr = string.char
 
+local double_decode_count = 0
+local double_encode_count = 0
+
 -- cache bitops
 local bor,band,bxor,rshift = luabit.bor,luabit.band,luabit.bxor,luabit.brshift
 if not rshift then -- luajit differ from luabit
@@ -51,6 +54,7 @@ end
 
 local strary_append_double = function(n)
   -- assume double
+  double_encode_count = double_encode_count + 1
   local b = doubleto8bytes(n)
   --                             print( string.format( "doubleto8bytes: %x %x %x %x %x %x %x %x", b:byte(1), b:byte(2), b:byte(3), b:byte(4), b:byte(5), b:byte(6), b:byte(7), b:byte(8)))
   table.insert( strary, tostr(0xcb))
@@ -343,6 +347,7 @@ local unpack_number = function(offset,ntype,nlen)
     --                            print( string.format("doublebytes networked: %x %x %x %x %x %x %x %x", b1, b2, b3, b4,b5,b6,b7,b8 ) )
     local s = tostr(b8,b7,b6,b5,b4,b3,b2,b1)                            
     --                            print(" unpack_double: slen:", string.len(s), b1, b2, b3, b4, b5, b6, b7, b8 )
+    double_decode_count = double_decode_count + 1
     local n = bytestodouble( s )
     return n
   else
@@ -523,9 +528,17 @@ local ljp_unpack = function(s,offset)
   return offset,data
 end
 
+function ljp_stat()
+  return {
+    double_decode_count = double_decode_count,
+    double_encode_count = double_encode_count
+  }
+end
+
 msgpack = {
   pack = ljp_pack,
   unpack = ljp_unpack,
+  stat = ljp_stat
 }
 
 return msgpack
