@@ -67,7 +67,7 @@ end
 -- out little endian
 function doubleto8bytes(x)
   local function grab_byte(v)
-    return math.floor(v / 256), tostr(math.mod(math.floor(v), 256))
+    return math.floor(v / 256), tostr(math.fmod(math.floor(v), 256))
   end
   local sign = 0
   if x < 0 then sign = 1; x = -x end
