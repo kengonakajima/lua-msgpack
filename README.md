@@ -97,3 +97,5 @@ on mac book pro i5 2.53GHz.
 
 
 
+## License
+Apache License 2.0. see LICENSE.txt.
