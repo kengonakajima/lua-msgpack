@@ -218,7 +218,7 @@ end
 --------------------
 -- bit lib interface
 
-bit = {
+local bit = {
  -- bit operations
  bnot = bit_not,
  band = bit_and,
