@@ -52,6 +52,7 @@ local function strary_append_int32(n,h)
       n % 256 ) )
 end   
 
+local doubleto8bytes
 local strary_append_double = function(n)
   -- assume double
   double_encode_count = double_encode_count + 1
@@ -65,7 +66,7 @@ end
 --- IEEE 754
 
 -- out little endian
-function doubleto8bytes(x)
+doubleto8bytes = function(x)
   local function grab_byte(v)
     return math.floor(v / 256), tostr(math.fmod(math.floor(v), 256))
   end
@@ -528,14 +529,14 @@ local ljp_unpack = function(s,offset)
   return offset,data
 end
 
-function ljp_stat()
+local function ljp_stat()
   return {
     double_decode_count = double_decode_count,
     double_encode_count = double_encode_count
   }
 end
 
-msgpack = {
+local msgpack = {
   pack = ljp_pack,
   unpack = ljp_unpack,
   stat = ljp_stat
